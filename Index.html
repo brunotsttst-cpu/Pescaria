@@ -1,0 +1,1467 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <!-- Meta tags para Web App -->
+    <meta name="theme-color" content="#0f172a">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>PescaPro - Condições de Pesca</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <style>
+        /* Custom Animations */
+        @keyframes float {
+            0% { transform: translateY(0px); }
+            50% { transform: translateY(-15px); }
+            100% { transform: translateY(0px); }
+        }
+        @keyframes wave {
+            0% { transform: translateX(0) scaleY(1); }
+            50% { transform: translateX(-25%) scaleY(0.9); }
+            100% { transform: translateX(-50%) scaleY(1); }
+        }
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .animate-float { animation: float 4s ease-in-out infinite; }
+        .animate-fade-in-up { animation: fadeInUp 0.6s ease-out forwards; }
+        
+        /* Glassmorphism Classes */
+        .glass-card {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+        }
+
+        .delay-100 { animation-delay: 100ms; }
+        .delay-200 { animation-delay: 200ms; }
+        .delay-300 { animation-delay: 300ms; }
+        .delay-400 { animation-delay: 400ms; }
+        
+        body {
+            /* Deep ocean gradient background */
+            background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 50%, #0891b2 100%);
+            background-attachment: fixed;
+            min-height: 100vh;
+            color: white;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            overflow-x: hidden;
+            overscroll-behavior-y: none; /* Previne o pull-to-refresh nativo do Chrome para usarmos o nosso customizado */
+        }
+
+        /* Loading Spinner */
+        .loader {
+            border: 4px solid rgba(255,255,255,0.1);
+            border-left-color: #38bdf8;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        /* Pagination & New Elements */
+        .pagination-dot {
+            transition: all 0.3s ease;
+        }
+        .pagination-dot.active {
+            width: 1.5rem;
+            background-color: #38bdf8;
+        }
+    </style>
+</head>
+<body class="relative antialiased selection:bg-cyan-500 selection:text-white">
+
+    <!-- Indicador de Pull-to-Refresh (Arrastar para baixo) -->
+    <div id="pullToRefresh" class="fixed top-0 left-0 w-full flex justify-center items-center py-4 z-50 transition-transform duration-300 pointer-events-none" style="transform: translateY(-100%);">
+        <div class="glass-card px-5 py-2.5 rounded-full flex items-center gap-3 bg-slate-900/80 border-cyan-500/30 text-cyan-300 shadow-xl">
+            <i data-lucide="refresh-cw" id="ptrIcon" class="w-5 h-5"></i>
+            <span class="font-medium text-sm tracking-wide">Atualizando dados...</span>
+        </div>
+    </div>
+
+    <!-- Top Right Action Buttons & Menu -->
+    <div class="fixed top-6 right-6 z-40 flex items-center gap-3">
+        <!-- Add Location Button -->
+        <button onclick="showSearchForm()" class="bg-white/10 hover:bg-white/20 border border-white/20 backdrop-blur-md text-white p-3 rounded-full shadow-lg transition-all transform hover:scale-110 active:scale-95 group hidden" id="addLocationBtn" title="Adicionar Local">
+            <i data-lucide="plus" class="w-6 h-6 text-cyan-300 group-hover:text-cyan-100"></i>
+        </button>
+
+        <!-- Menu Hamburger Button -->
+        <button onclick="toggleMenu()" class="bg-slate-900/60 hover:bg-slate-800/80 border border-cyan-400/30 backdrop-blur-md text-cyan-300 hover:text-white p-3 rounded-full shadow-lg transition-all transform hover:scale-105 active:scale-95 relative" title="Menu principal">
+            <i data-lucide="menu" class="w-6 h-6"></i>
+            <!-- Indicator badge if monitoring alert exists -->
+            <span id="menuAlertDot" class="hidden absolute top-0 right-0 w-3.5 h-3.5 bg-red-500 rounded-full border-2 border-slate-900"></span>
+        </button>
+    </div>
+
+    <!-- Slide-over Navigation Menu Drawer -->
+    <div id="menuBackdrop" onclick="toggleMenu()" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 opacity-0 pointer-events-none transition-opacity duration-300"></div>
+    <div id="sideMenu" class="fixed top-0 right-0 h-full w-80 max-w-[85vw] glass-card bg-slate-900/95 z-50 border-l border-cyan-500/30 transform translate-x-full transition-transform duration-300 p-6 flex flex-col justify-between">
+        <div>
+            <div class="flex justify-between items-center mb-8 border-b border-white/10 pb-4">
+                <div class="flex items-center gap-2">
+                    <i data-lucide="fish" class="w-6 h-6 text-cyan-400"></i>
+                    <span class="font-bold text-xl text-white">Navegação</span>
+                </div>
+                <button onclick="toggleMenu()" class="text-gray-400 hover:text-white p-1 rounded-lg">
+                    <i data-lucide="x" class="w-6 h-6"></i>
+                </button>
+            </div>
+
+            <nav class="space-y-3">
+                <button onclick="navigateToView('dashboard')" class="w-full flex items-center justify-between p-3.5 rounded-xl bg-white/5 hover:bg-cyan-500/20 border border-white/10 hover:border-cyan-500/30 text-white font-medium transition-all group">
+                    <span class="flex items-center gap-3">
+                        <i data-lucide="layout-dashboard" class="w-5 h-5 text-cyan-400 group-hover:scale-110 transition-transform"></i>
+                        Dashboard Principal
+                    </span>
+                    <i data-lucide="chevron-right" class="w-4 h-4 text-cyan-400 opacity-60"></i>
+                </button>
+
+                <button onclick="navigateToView('scheduled')" class="w-full flex items-center justify-between p-3.5 rounded-xl bg-white/5 hover:bg-cyan-500/20 border border-white/10 hover:border-cyan-500/30 text-white font-medium transition-all group relative">
+                    <span class="flex items-center gap-3">
+                        <i data-lucide="calendar-days" class="w-5 h-5 text-cyan-400 group-hover:scale-110 transition-transform"></i>
+                        Pescas Agendadas
+                    </span>
+                    <div class="flex items-center gap-2">
+                        <span id="menuScheduledBadge" class="text-xs bg-cyan-500/20 border border-cyan-400/30 text-cyan-300 px-2 py-0.5 rounded-full">0</span>
+                        <i data-lucide="chevron-right" class="w-4 h-4 text-cyan-400 opacity-60"></i>
+                    </div>
+                </button>
+
+                <button onclick="showScheduleModal(); toggleMenu();" class="w-full flex items-center gap-3 p-3.5 rounded-xl bg-cyan-600/30 hover:bg-cyan-600/50 border border-cyan-400/40 text-cyan-200 font-semibold transition-all mt-4">
+                    <i data-lucide="calendar-plus" class="w-5 h-5 text-cyan-300"></i>
+                    Nova Pescaria
+                </button>
+            </nav>
+        </div>
+
+        <div class="border-t border-white/10 pt-4 text-xs text-center text-blue-300/60">
+            <p>PescaPro Web App &copy; Previsão Preditiva de Pesca</p>
+            <p class="mt-1 text-[10px]" id="lastUpdateText">Atualizado diariamente</p>
+        </div>
+    </div>
+
+    <!-- Decorative Background Elements -->
+    <div class="fixed top-20 left-10 w-64 h-64 bg-blue-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-float pointer-events-none"></div>
+    <div class="fixed bottom-20 right-10 w-80 h-80 bg-cyan-400 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-float pointer-events-none" style="animation-delay: 2s;"></div>
+
+    <main class="container mx-auto px-4 py-12 relative z-10 max-w-5xl">
+        
+        <!-- Header -->
+        <header class="text-center mb-12 animate-fade-in-up">
+            <div class="flex justify-center items-center gap-3 mb-4">
+                <i data-lucide="fish" class="w-10 h-10 text-cyan-400"></i>
+                <h1 class="text-4xl md:text-5xl font-bold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-cyan-300 to-blue-200">
+                    PescaPro
+                </h1>
+            </div>
+            <p class="text-blue-200 text-lg md:text-xl max-w-2xl mx-auto">
+                Descubra as condições reais de pesca antes de sair de casa.
+            </p>
+        </header>
+
+        <!-- SEÇÃO: TELA DEDICADA PARA PESCAS AGENDADAS (Cards Expansíveis) -->
+        <div id="scheduledViewPage" class="hidden animate-fade-in-up max-w-3xl mx-auto mb-16">
+            <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
+                <div>
+                    <h2 class="text-3xl font-bold text-white flex items-center gap-3">
+                        <i data-lucide="calendar-range" class="w-8 h-8 text-cyan-400"></i>
+                        Pescas Agendadas & Monitoramento
+                    </h2>
+                    <p class="text-sm text-cyan-200/80 mt-1">O app atualiza e monitora diariamente as condições dos seus agendamentos para os próximos 15 dias.</p>
+                </div>
+                <button onclick="showScheduleModal()" class="bg-cyan-600 hover:bg-cyan-500 text-white px-5 py-2.5 rounded-xl font-semibold shadow-md flex items-center gap-2 transition-all transform active:scale-95">
+                    <i data-lucide="plus" class="w-4 h-4"></i> Agendar Nova
+                </button>
+            </div>
+
+            <!-- Lista de Cards Expansíveis -->
+            <div id="expandableScheduledList" class="space-y-4">
+                <!-- Injetado dinamicamente via JS -->
+            </div>
+        </div>
+
+        <!-- SEÇÃO: DASHBOARD DE PREVISÃO ATUAL (Pesquisa e Clima) -->
+        <div id="dashboardViewPage">
+            <!-- Search Box -->
+            <div id="searchContainer" class="max-w-2xl mx-auto mb-16 animate-fade-in-up delay-100 opacity-0 hidden">
+                <form id="searchForm" class="relative group mb-4">
+                    <div class="absolute inset-y-0 left-0 flex items-center pl-4 pointer-events-none">
+                        <i data-lucide="map-pin" class="w-6 h-6 text-cyan-300 group-focus-within:text-cyan-400 transition-colors"></i>
+                    </div>
+                    <input type="text" id="locationInput" required
+                        class="block w-full p-5 pl-12 text-lg text-white bg-white/10 border border-white/20 rounded-2xl backdrop-blur-md focus:ring-2 focus:ring-cyan-400 focus:border-transparent placeholder-blue-200/70 transition-all outline-none shadow-lg"
+                        placeholder="Ex: Santos, Represa de Furnas, Manaus...">
+                    <button type="submit" class="absolute right-2.5 bottom-2.5 top-2.5 text-white bg-cyan-600 hover:bg-cyan-500 focus:ring-4 focus:outline-none focus:ring-cyan-800 font-medium rounded-xl text-sm px-6 py-2 transition-all transform active:scale-95 flex items-center gap-2 shadow-md">
+                        <i data-lucide="search" class="w-4 h-4"></i> Analisar
+                    </button>
+                </form>
+
+                <!-- Geolocation Button -->
+                <div class="flex justify-center">
+                    <button onclick="useCurrentLocation()" class="flex items-center gap-2 text-cyan-300 hover:text-white bg-white/5 hover:bg-white/10 px-5 py-2.5 rounded-xl border border-white/10 backdrop-blur-sm transition-all text-sm font-medium">
+                        <i data-lucide="navigation" class="w-4 h-4"></i>
+                        Usar minha localização atual
+                    </button>
+                </div>
+                
+                <!-- Cancel Search Button (Shows only if there are saved locations) -->
+                <div class="flex justify-center mt-4 hidden" id="cancelSearchContainer">
+                    <button onclick="cancelSearch()" class="text-sm text-blue-300 hover:text-white underline transition-colors">
+                        Voltar para o Dashboard
+                    </button>
+                </div>
+            </div>
+
+            <!-- Loading State -->
+            <div id="loadingState" class="hidden flex-col items-center justify-center py-12">
+                <div class="loader mb-4"></div>
+                <p class="text-cyan-200 animate-pulse" id="loadingText">Lendo os ventos, medindo pressão e mapeando águas...</p>
+            </div>
+
+            <!-- Results Dashboard (Hidden by default) -->
+            <div id="resultsDashboard" class="hidden">
+                
+                <h2 id="locationTitle" class="text-3xl font-bold text-center mb-8 text-white flex justify-center items-center gap-2">
+                    <i data-lucide="map" class="w-8 h-8 text-cyan-400"></i>
+                    <span>Condições Reais para [Local]</span>
+                </h2>
+
+                <!-- O "Resumo Mastigado" (The Verdict) -->
+                <div id="verdictCard" class="glass-card rounded-3xl p-8 mb-10 text-center animate-fade-in-up transform transition-all hover:scale-[1.01]">
+                    <div id="verdictIconContainer" class="flex justify-center mb-4">
+                        <!-- Icon injected by JS -->
+                    </div>
+                    <h3 id="verdictTitle" class="text-3xl font-extrabold mb-3">Avaliando...</h3>
+                    <p id="verdictText" class="text-lg text-blue-100 max-w-3xl mx-auto leading-relaxed">
+                        Processando condições meteorológicas...
+                    </p>
+                </div>
+
+                <!-- Details Grid -->
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    
+                    <!-- Weather Card -->
+                    <div class="glass-card rounded-2xl p-6 flex items-start gap-4 animate-fade-in-up delay-100 opacity-0 group hover:bg-white/20 transition-all">
+                        <div id="weatherIconWrapper" class="p-3 bg-blue-500/20 rounded-xl text-blue-300 group-hover:text-white group-hover:bg-blue-500/40 transition-colors">
+                            <i data-lucide="cloud-sun" class="w-8 h-8"></i>
+                        </div>
+                        <div>
+                            <p class="text-sm text-blue-200 uppercase tracking-wider font-semibold mb-1">Clima Atual</p>
+                            <p id="weatherDesc" class="text-xl font-bold text-white">-</p>
+                            <p id="weatherTemp" class="text-sm text-blue-300 mt-1">-</p>
+                        </div>
+                    </div>
+
+                    <!-- Pressure Card -->
+                    <div class="glass-card rounded-2xl p-6 flex items-start gap-4 animate-fade-in-up delay-200 opacity-0 group hover:bg-white/20 transition-all">
+                        <div class="p-3 bg-indigo-500/20 rounded-xl text-indigo-300 group-hover:text-white group-hover:bg-indigo-500/40 transition-colors">
+                            <i data-lucide="gauge" class="w-8 h-8"></i>
+                        </div>
+                        <div>
+                            <p class="text-sm text-blue-200 uppercase tracking-wider font-semibold mb-1">Pressão Atmosférica</p>
+                            <p id="pressureValue" class="text-xl font-bold text-white">-</p>
+                            <p id="pressureStatus" class="text-sm text-green-400 mt-1">-</p>
+                        </div>
+                    </div>
+
+                    <!-- Moon Phase Card -->
+                    <div class="glass-card rounded-2xl p-6 flex items-start gap-4 animate-fade-in-up delay-300 opacity-0 group hover:bg-white/20 transition-all">
+                        <div class="p-3 bg-yellow-500/20 rounded-xl text-yellow-300 group-hover:text-white group-hover:bg-yellow-500/40 transition-colors">
+                            <i data-lucide="moon" class="w-8 h-8"></i>
+                        </div>
+                        <div>
+                            <p class="text-sm text-blue-200 uppercase tracking-wider font-semibold mb-1">Fase da Lua Hoje</p>
+                            <p id="moonPhase" class="text-xl font-bold text-white">-</p>
+                            <p id="moonImpact" class="text-sm text-blue-300 mt-1">-</p>
+                        </div>
+                    </div>
+
+                    <!-- Wind Card -->
+                    <div class="glass-card rounded-2xl p-6 flex items-start gap-4 animate-fade-in-up delay-100 opacity-0 group hover:bg-white/20 transition-all">
+                        <div class="p-3 bg-teal-500/20 rounded-xl text-teal-300 group-hover:text-white group-hover:bg-teal-500/40 transition-colors">
+                            <i data-lucide="wind" class="w-8 h-8"></i>
+                        </div>
+                        <div>
+                            <p class="text-sm text-blue-200 uppercase tracking-wider font-semibold mb-1">Vento</p>
+                            <p id="windSpeed" class="text-xl font-bold text-white">-</p>
+                            <p id="windStatus" class="text-sm text-green-400 mt-1">-</p>
+                        </div>
+                    </div>
+
+                    <!-- Water Temp Card -->
+                    <div class="glass-card rounded-2xl p-6 flex items-start gap-4 animate-fade-in-up delay-200 opacity-0 group hover:bg-white/20 transition-all">
+                        <div class="p-3 bg-cyan-500/20 rounded-xl text-cyan-300 group-hover:text-white group-hover:bg-cyan-500/40 transition-colors">
+                            <i data-lucide="thermometer" class="w-8 h-8"></i>
+                        </div>
+                        <div>
+                            <p class="text-sm text-blue-200 uppercase tracking-wider font-semibold mb-1">Temp. Água (Est.)</p>
+                            <p id="waterTemp" class="text-xl font-bold text-white">-</p>
+                            <p id="waterStatus" class="text-sm text-blue-300 mt-1">-</p>
+                        </div>
+                    </div>
+
+                    <!-- Best Time Card -->
+                    <div class="glass-card rounded-2xl p-6 flex items-start gap-4 animate-fade-in-up delay-300 opacity-0 group hover:bg-white/20 transition-all">
+                        <div class="p-3 bg-orange-500/20 rounded-xl text-orange-300 group-hover:text-white group-hover:bg-orange-500/40 transition-colors">
+                            <i data-lucide="clock" class="w-8 h-8"></i>
+                        </div>
+                        <div>
+                            <p class="text-sm text-blue-200 uppercase tracking-wider font-semibold mb-1">Pico de Atividade</p>
+                            <p id="bestTime" class="text-xl font-bold text-white">-</p>
+                            <p class="text-sm text-blue-300 mt-1">Horário recomendado</p>
+                        </div>
+                    </div>
+
+                    <!-- Ambiente Recomendado Card (Mar vs Rio) -->
+                    <div class="glass-card rounded-2xl p-6 flex flex-col gap-3 animate-fade-in-up delay-400 opacity-0 group hover:bg-white/20 transition-all col-span-1 md:col-span-2 lg:col-span-3 mt-4">
+                        <div class="flex items-center gap-3 mb-2">
+                            <div class="p-3 bg-purple-500/20 rounded-xl text-purple-300 group-hover:text-white group-hover:bg-purple-500/40 transition-colors">
+                                <i data-lucide="waves" class="w-8 h-8"></i>
+                            </div>
+                            <div>
+                                <p class="text-sm text-blue-200 uppercase tracking-wider font-semibold">Análise de Ambiente</p>
+                                <p id="envRecommendation" class="text-xl font-bold text-white">-</p>
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
+                            <div class="bg-black/20 rounded-xl p-4 border border-white/5 relative overflow-hidden">
+                                <div class="absolute top-0 right-0 p-2 opacity-10 pointer-events-none"><i data-lucide="anchor" class="w-16 h-16"></i></div>
+                                <p class="text-sm text-cyan-300 mb-2 flex items-center gap-2"><i data-lucide="anchor" class="w-4 h-4"></i> Litoral / Mar (Se houver)</p>
+                                <p id="seaConditions" class="text-white font-medium relative z-10">-</p>
+                            </div>
+                            <div class="bg-black/20 rounded-xl p-4 border border-white/5 relative overflow-hidden">
+                                <div class="absolute top-0 right-0 p-2 opacity-10 pointer-events-none"><i data-lucide="droplets" class="w-16 h-16"></i></div>
+                                <p class="text-sm text-teal-300 mb-2 flex items-center gap-2"><i data-lucide="droplets" class="w-4 h-4"></i> Represa / Rio</p>
+                                <p id="riverConditions" class="text-white font-medium relative z-10">-</p>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+                
+                <div class="mt-12 flex flex-col sm:flex-row items-center justify-center gap-6 animate-fade-in-up delay-400 opacity-0">
+                    <button onclick="showWeeklyForecast()" class="text-white bg-indigo-600 hover:bg-indigo-500 focus:ring-4 focus:outline-none focus:ring-indigo-800 font-medium rounded-xl text-sm px-8 py-3 transition-all transform active:scale-95 flex items-center gap-2 shadow-md">
+                        <i data-lucide="calendar-days" class="w-5 h-5"></i> Ver Previsão da Semana
+                    </button>
+                    <button onclick="removeCurrentLocation()" class="text-red-400 hover:text-white bg-red-500/10 hover:bg-red-500 border border-red-500/20 hover:border-red-500 font-medium rounded-xl text-sm px-6 py-3 transition-all transform active:scale-95 flex items-center gap-2 shadow-md">
+                        <i data-lucide="trash-2" class="w-5 h-5"></i> Remover Local
+                    </button>
+                </div>
+                
+                <!-- Pagination Dots (Navegação Swipe) -->
+                <div id="locationPagination" class="mt-8 flex justify-center gap-2 animate-fade-in-up delay-400 opacity-0 hidden">
+                    <!-- Injetado via JS -->
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Modal de Agendamento de Pescaria -->
+    <div id="scheduleModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/60 backdrop-blur-sm p-4 opacity-0 transition-opacity duration-300">
+        <div class="glass-card bg-slate-900/95 rounded-3xl p-6 md:p-8 w-full max-w-lg transform scale-95 transition-transform duration-300 border-cyan-500/40" id="scheduleModalContent">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-2xl font-bold text-white flex items-center gap-2">
+                    <i data-lucide="calendar-plus" class="w-6 h-6 text-cyan-400"></i>
+                    Agendar Pescaria
+                </h3>
+                <button onclick="closeScheduleModal()" class="text-gray-400 hover:text-white transition-colors bg-white/5 hover:bg-white/10 p-2 rounded-lg">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <form id="scheduleForm" onsubmit="handleScheduleSubmit(event)" class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-cyan-200 mb-1">Onde será a pescaria?</label>
+                    <input type="text" id="scheduleLocation" required placeholder="Ex: Barra do Una, Represa de Guarapiranga..."
+                        class="w-full p-3.5 text-white bg-white/10 border border-white/20 rounded-xl backdrop-blur-md focus:ring-2 focus:ring-cyan-400 outline-none">
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-cyan-200 mb-1">Data Prevista</label>
+                    <input type="date" id="scheduleDate" required
+                        class="w-full p-3.5 text-white bg-white/10 border border-white/20 rounded-xl backdrop-blur-md focus:ring-2 focus:ring-cyan-400 outline-none">
+                </div>
+
+                <div class="p-4 bg-cyan-950/40 border border-cyan-500/30 rounded-xl text-xs text-cyan-200 space-y-1">
+                    <p class="font-bold flex items-center gap-1"><i data-lucide="shield-alert" class="w-4 h-4 text-cyan-400"></i> Monitoramento Diário Inteligente:</p>
+                    <p>Faltando 15 dias para a data agendada, o app atualizará diariamente a previsão de tempo, ventos e pressão até 16 dias no futuro. Se houver desfavorabilidade climática, você receberá um alerta antecipado!</p>
+                </div>
+
+                <div class="flex gap-3 pt-2">
+                    <button type="button" onclick="closeScheduleModal()" class="w-1/2 py-3 bg-white/5 hover:bg-white/10 text-white font-medium rounded-xl border border-white/10 transition-all">Cancelar</button>
+                    <button type="submit" class="w-1/2 py-3 bg-cyan-600 hover:bg-cyan-500 text-white font-semibold rounded-xl shadow-lg transition-all flex justify-center items-center gap-2">
+                        <i data-lucide="check" class="w-4 h-4"></i> Confirmar
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Weekly Forecast Modal -->
+    <div id="weeklyModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/60 backdrop-blur-sm p-4 opacity-0 transition-opacity duration-300">
+        <div class="glass-card bg-slate-900/90 rounded-3xl p-6 md:p-8 w-full max-w-xl transform scale-95 transition-transform duration-300 border-indigo-500/30" id="weeklyModalContent">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-2xl font-bold text-white flex items-center gap-2">
+                    <i data-lucide="calendar" class="w-6 h-6 text-indigo-400"></i>
+                    Previsão da Semana
+                </h3>
+                <button onclick="closeWeeklyForecast()" class="text-gray-400 hover:text-white transition-colors bg-white/5 hover:bg-white/10 p-2 rounded-lg">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <div class="space-y-3 max-h-[60vh] overflow-y-auto pr-2" id="weeklyList">
+                <!-- Injetado via JS -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Waves animation at the bottom -->
+    <div class="fixed bottom-0 left-0 w-full overflow-hidden leading-none z-0 opacity-40 pointer-events-none">
+        <svg class="relative block w-[200%] h-[100px]" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 120" preserveAspectRatio="none" style="animation: wave 10s linear infinite;">
+            <path d="M0,0V46.29c47.79,22.2,103.59,32.17,158,28,70.36-5.37,136.33-33.31,206.8-37.5C438.64,32.43,512.34,53.67,583,72.05c69.27,18,138.3,24.88,209.4,13.08,36.15-6,69.85-17.84,104.45-29.34C989.49,25,1113-14.29,1200,52.47V0Z" opacity=".25" class="fill-cyan-600"></path>
+            <path d="M0,0V15.81C13,36.92,27.64,56.86,47.69,72.05,99.41,111.27,165,111,224.58,91.58c31.15-10.15,60.09-26.07,89.67-39.8,40.92-19,84.73-46,130.83-49.67,36.26-2.85,70.9,9.42,98.6,31.56,31.77,25.39,62.32,62,103.63,73,40.44,10.79,81.35-6.69,119.13-24.28s75.16-39,116.92-43.05c59.73-5.85,113.28,22.88,168.9,38.84,30.2,8.66,59,6.17,87.09-7.5,22.43-10.89,48-26.93,60.65-49.24V0Z" opacity=".5" class="fill-cyan-500"></path>
+            <path d="M0,0V5.63C149.93,59,314.09,71.32,475.83,42.57c43-7.64,84.23-20.12,127.61-26.46,59-8.63,112.48,12.24,165.56,35.4C827.93,77.22,886,95.24,951.2,90c86.53-7,172.46-45.71,248.8-84.81V0Z" class="fill-cyan-400"></path>
+        </svg>
+    </div>
+
+    <!-- SCRIPT DE GERAÇÃO AUTOMÁTICA DE PWA (MANIFEST & SERVICE WORKER) -->
+    <script>
+        (function setupAutomaticPWA() {
+            const manifestData = {
+                name: "PescaPro - Condições de Pesca",
+                short_name: "PescaPro",
+                description: "Previsão avançada e monitoramento inteligente para pescarias.",
+                start_url: "./",
+                display: "standalone",
+                background_color: "#0f172a",
+                theme_color: "#0f172a",
+                icons: [
+                    {
+                        src: "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2338bdf8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M6.5 12c.94-2.07 3.08-3.5 5.5-3.5s4.56 1.43 5.5 3.5c-.94 2.07-3.08 3.5-5.5 3.5s-4.56-1.43-5.5-3.5z'/><path d='M2 12h20'/><path d='M12 2v20'/></svg>",
+                        sizes: "192x192 512x512",
+                        type: "image/svg+xml",
+                        purpose: "any maskable"
+                    }
+                ]
+            };
+            const manifestBlob = new Blob([JSON.stringify(manifestData)], { type: 'application/json' });
+            const manifestUrl = URL.createObjectURL(manifestBlob);
+            const manifestLink = document.createElement('link');
+            manifestLink.rel = 'manifest';
+            manifestLink.href = manifestUrl;
+            document.head.appendChild(manifestLink);
+
+            if ('serviceWorker' in navigator) {
+                const swCode = `
+                    const CACHE_NAME = 'pescapro-cache-v3';
+                    const ASSETS = [
+                        './',
+                        'https://cdn.tailwindcss.com',
+                        'https://unpkg.com/lucide@latest'
+                    ];
+
+                    self.addEventListener('install', (e) => {
+                        e.waitUntil(
+                            caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS))
+                        );
+                        self.skipWaiting();
+                    });
+
+                    self.addEventListener('activate', (e) => {
+                        e.waitUntil(
+                            caches.keys().then((keys) => {
+                                return Promise.all(
+                                    keys.map((key) => {
+                                        if (key !== CACHE_NAME) return caches.delete(key);
+                                    })
+                                );
+                            })
+                        );
+                        self.clients.claim();
+                    });
+
+                    self.addEventListener('fetch', (e) => {
+                        e.respondWith(
+                            caches.match(e.request).then((res) => {
+                                return res || fetch(e.request).catch(() => {
+                                    if (e.request.mode === 'navigate') {
+                                        return caches.match('./');
+                                    }
+                                });
+                            })
+                        );
+                    });
+                `;
+                const swBlob = new Blob([swCode], { type: 'application/javascript' });
+                const swUrl = URL.createObjectURL(swBlob);
+
+                window.addEventListener('load', () => {
+                    navigator.serviceWorker.register(swUrl)
+                        .then(() => console.log('Service Worker registrado automaticamente com sucesso!'))
+                        .catch((err) => console.error('Erro ao registrar Service Worker:', err));
+                });
+            }
+        })();
+    </script>
+
+    <!-- SCRIPT PRINCIPAL E GERENCIAMENTO DE MENU & CARDS EXPANSÍVEIS -->
+    <script>
+        let weeklyDataCache = null;
+        let savedLocations = []; 
+        let currentLocIndex = 0;
+        let scheduledFishingTrips = []; 
+        let expandedTripId = null; 
+        
+        let touchStartX = 0;
+        let touchEndX = 0;
+        
+        let pullStartY = 0;
+        let isRefreshing = false;
+
+        const weatherCodes = {
+            0: { desc: 'Céu Limpo', icon: 'sun', color: 'text-yellow-400' },
+            1: { desc: 'Principalmente Limpo', icon: 'cloud-sun', color: 'text-yellow-300' },
+            2: { desc: 'Parcialmente Nublado', icon: 'cloud', color: 'text-gray-300' },
+            3: { desc: 'Nublado', icon: 'cloud', color: 'text-gray-400' },
+            45: { desc: 'Neblina', icon: 'cloud-fog', color: 'text-gray-300' },
+            48: { desc: 'Névoa', icon: 'cloud-fog', color: 'text-gray-300' },
+            51: { desc: 'Garoa Leve', icon: 'cloud-rain', color: 'text-blue-300' },
+            53: { desc: 'Garoa Moderada', icon: 'cloud-rain', color: 'text-blue-400' },
+            55: { desc: 'Garoa Densa', icon: 'cloud-rain', color: 'text-blue-500' },
+            61: { desc: 'Chuva Leve', icon: 'cloud-rain', color: 'text-blue-300' },
+            63: { desc: 'Chuva Moderada', icon: 'cloud-rain', color: 'text-blue-400' },
+            65: { desc: 'Chuva Forte', icon: 'cloud-rain', color: 'text-blue-500' },
+            80: { desc: 'Pancadas de Chuva', icon: 'cloud-rain', color: 'text-blue-400' },
+            95: { desc: 'Tempestade', icon: 'cloud-lightning', color: 'text-purple-400' },
+            99: { desc: 'Tempestade Severa', icon: 'cloud-lightning', color: 'text-red-500' }
+        };
+
+        function toggleMenu() {
+            const sideMenu = document.getElementById('sideMenu');
+            const backdrop = document.getElementById('menuBackdrop');
+            const isOpen = !sideMenu.classList.contains('translate-x-full');
+
+            if (isOpen) {
+                sideMenu.classList.add('translate-x-full');
+                backdrop.classList.add('opacity-0', 'pointer-events-none');
+            } else {
+                sideMenu.classList.remove('translate-x-full');
+                backdrop.classList.remove('opacity-0', 'pointer-events-none');
+            }
+        }
+
+        function navigateToView(viewName) {
+            const dashboardPage = document.getElementById('dashboardViewPage');
+            const scheduledPage = document.getElementById('scheduledViewPage');
+
+            if (viewName === 'scheduled') {
+                dashboardPage.classList.add('hidden');
+                scheduledPage.classList.remove('hidden');
+                renderExpandableScheduledCards();
+            } else {
+                scheduledPage.classList.add('hidden');
+                dashboardPage.classList.remove('hidden');
+            }
+            toggleMenu();
+        }
+
+        function saveLocationsToStorage() {
+            localStorage.setItem('pescaProLocations', JSON.stringify(savedLocations));
+        }
+
+        function loadLocationsFromStorage() {
+            const stored = localStorage.getItem('pescaProLocations');
+            if (stored) {
+                try {
+                    savedLocations = JSON.parse(stored);
+                    if (savedLocations.length > 0) {
+                        currentLocIndex = 0;
+                        renderLocation(currentLocIndex);
+                        document.getElementById('addLocationBtn').classList.remove('hidden');
+                        return true;
+                    }
+                } catch(e) {
+                    console.error("Erro ao carregar locais salvos", e);
+                }
+            }
+            return false;
+        }
+
+        function removeCurrentLocation() {
+            if (savedLocations.length === 0) return;
+            
+            savedLocations.splice(currentLocIndex, 1);
+            saveLocationsToStorage();
+            
+            if (savedLocations.length === 0) {
+                document.getElementById('resultsDashboard').classList.add('hidden');
+                document.getElementById('addLocationBtn').classList.add('hidden');
+                document.getElementById('locationPagination').classList.add('hidden');
+                useCurrentLocation();
+            } else {
+                if (currentLocIndex >= savedLocations.length) {
+                    currentLocIndex = savedLocations.length - 1;
+                }
+                renderLocation(currentLocIndex);
+            }
+        }
+
+        function saveSchedulesToStorage() {
+            localStorage.setItem('pescaProSchedules', JSON.stringify(scheduledFishingTrips));
+        }
+
+        function loadSchedulesFromStorage() {
+            const stored = localStorage.getItem('pescaProSchedules');
+            if (stored) {
+                try {
+                    scheduledFishingTrips = JSON.parse(stored);
+                } catch (e) {
+                    console.error("Erro ao carregar agendamentos", e);
+                }
+            }
+        }
+
+        function showScheduleModal() {
+            const minDate = new Date().toISOString().split('T')[0];
+            const dateInput = document.getElementById('scheduleDate');
+            dateInput.min = minDate;
+            if (!dateInput.value) dateInput.value = minDate;
+
+            const modal = document.getElementById('scheduleModal');
+            const modalContent = document.getElementById('scheduleModalContent');
+            
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            
+            setTimeout(() => {
+                modal.classList.remove('opacity-0');
+                modalContent.classList.remove('scale-95');
+            }, 10);
+
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+        }
+
+        function closeScheduleModal() {
+            const modal = document.getElementById('scheduleModal');
+            const modalContent = document.getElementById('scheduleModalContent');
+            
+            modal.classList.add('opacity-0');
+            modalContent.classList.add('scale-95');
+            
+            setTimeout(() => {
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+            }, 300);
+        }
+
+        async function handleScheduleSubmit(e) {
+            e.preventDefault();
+            const locationName = document.getElementById('scheduleLocation').value.trim();
+            const targetDate = document.getElementById('scheduleDate').value;
+
+            if (!locationName || !targetDate) return;
+
+            if ("Notification" in window && Notification.permission !== "granted" && Notification.permission !== "denied") {
+                await Notification.requestPermission();
+            }
+
+            const newTrip = {
+                id: Date.now(),
+                location: locationName,
+                date: targetDate,
+                created: new Date().toISOString(),
+                forecastData: null
+            };
+
+            scheduledFishingTrips.push(newTrip);
+            saveSchedulesToStorage();
+            closeScheduleModal();
+            document.getElementById('scheduleForm').reset();
+            
+            await checkAndMonitorSchedules();
+            navigateToView('scheduled');
+        }
+
+        function deleteSchedule(id, event) {
+            if(event) event.stopPropagation();
+            scheduledFishingTrips = scheduledFishingTrips.filter(item => item.id !== id);
+            saveSchedulesToStorage();
+            renderExpandableScheduledCards();
+            updateMenuBadges();
+        }
+
+        function toggleTripExpand(id) {
+            expandedTripId = expandedTripId === id ? null : id;
+            renderExpandableScheduledCards();
+        }
+
+        // Sistema Preditivo com Atualização Diária & forecast_days=16
+        async function checkAndMonitorSchedules() {
+            if (scheduledFishingTrips.length === 0) {
+                updateMenuBadges();
+                return;
+            }
+
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            let hasAlert = false;
+
+            for (let trip of scheduledFishingTrips) {
+                const tripDate = new Date(trip.date + "T00:00:00");
+                const diffTime = tripDate - today;
+                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+                if (diffDays < 0) {
+                    trip.status = 'expired';
+                    trip.statusText = 'Pescaria realizada / Encerrada';
+                    trip.statusColor = 'text-gray-400';
+                    trip.badgeBg = 'bg-gray-500/20 border-gray-500/30 text-gray-300';
+                    continue;
+                }
+
+                if (diffDays <= 15) {
+                    trip.isMonitoring = true;
+                    try {
+                        const geoUrl = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(trip.location)}&count=1&language=pt`;
+                        const geoRes = await fetch(geoUrl);
+                        const geoData = await geoRes.json();
+
+                        if (geoData.results && geoData.results.length > 0) {
+                            const loc = geoData.results[0];
+                            // Adicionado &forecast_days=16 para cobrir toda a janela de até 16 dias futuros
+                            const forecastUrl = `https://api.open-meteo.com/v1/forecast?latitude=${loc.latitude}&longitude=${loc.longitude}&daily=weather_code,temperature_2m_max,temperature_2m_min,wind_speed_10m_max&timezone=auto&forecast_days=16`;
+                            const forecastRes = await fetch(forecastUrl);
+                            const forecastData = await forecastRes.json();
+
+                            if (forecastData.daily && forecastData.daily.time) {
+                                const indexInForecast = forecastData.daily.time.indexOf(trip.date);
+
+                                if (indexInForecast !== -1) {
+                                    const wCode = forecastData.daily.weather_code[indexInForecast];
+                                    const windMax = Math.round(forecastData.daily.wind_speed_10m_max[indexInForecast]);
+                                    const tempMax = Math.round(forecastData.daily.temperature_2m_max[indexInForecast]);
+                                    const tempMin = Math.round(forecastData.daily.temperature_2m_min[indexInForecast]);
+
+                                    const isBadWeather = wCode >= 61 || windMax > 25;
+
+                                    trip.forecastDetails = {
+                                        weatherDesc: weatherCodes[wCode]?.desc || 'Variável',
+                                        icon: weatherCodes[wCode]?.icon || 'cloud',
+                                        windMax: windMax,
+                                        tempMax: tempMax,
+                                        tempMin: tempMin,
+                                        isBad: isBadWeather
+                                    };
+
+                                    if (isBadWeather) {
+                                        hasAlert = true;
+                                        trip.status = 'danger';
+                                        trip.statusText = `⚠️ Alerta Climatológico! (${trip.forecastDetails.weatherDesc}, Vento: ${windMax}km/h).`;
+                                        trip.statusColor = 'text-red-300';
+                                        trip.badgeBg = 'bg-red-500/20 border-red-500/40 text-red-300';
+
+                                        triggerPushNotification(
+                                            `Alerta PescaPro - ${trip.location}`,
+                                            `Condições desfavoráveis para ${trip.date}: ${trip.forecastDetails.weatherDesc}. Programe-se!`
+                                        );
+                                    } else {
+                                        trip.status = 'good';
+                                        trip.statusText = `✅ Condições Favoráveis (${trip.forecastDetails.weatherDesc}, Vento: ${windMax}km/h).`;
+                                        trip.statusColor = 'text-green-300';
+                                        trip.badgeBg = 'bg-green-500/20 border-green-500/40 text-green-300';
+                                    }
+                                } else {
+                                    trip.status = 'monitoring';
+                                    trip.statusText = `🔍 Monitorando (Faltam ${diffDays} dias). Atualizando diariamente...`;
+                                    trip.statusColor = 'text-cyan-300';
+                                    trip.badgeBg = 'bg-cyan-500/20 border-cyan-500/30 text-cyan-300';
+                                }
+                            }
+                        }
+                    } catch (err) {
+                        console.error("Erro ao monitorar pescaria", err);
+                        trip.statusText = `🔍 Monitoramento ativo (Faltam ${diffDays} dias).`;
+                        trip.statusColor = 'text-cyan-300';
+                        trip.badgeBg = 'bg-cyan-500/20 border-cyan-500/30 text-cyan-300';
+                    }
+                } else {
+                    trip.isMonitoring = false;
+                    trip.statusText = `⏳ Agendado (Monitoramento preditivo iniciará em ${diffDays - 15} dias)`;
+                    trip.statusColor = 'text-blue-300';
+                    trip.badgeBg = 'bg-blue-500/20 border-blue-500/30 text-blue-300';
+                }
+            }
+
+            localStorage.setItem('pescaProLastUpdate', new Date().toLocaleDateString('pt-BR'));
+            const lastUpdateEl = document.getElementById('lastUpdateText');
+            if (lastUpdateEl) lastUpdateEl.innerText = `Última varredura: Hoje`;
+
+            saveSchedulesToStorage();
+            updateMenuBadges(hasAlert);
+            renderExpandableScheduledCards();
+        }
+
+        function updateMenuBadges(hasAlert = false) {
+            const countBadge = document.getElementById('menuScheduledBadge');
+            const alertDot = document.getElementById('menuAlertDot');
+
+            if (countBadge) countBadge.innerText = scheduledFishingTrips.length;
+            if (alertDot) {
+                if (hasAlert) alertDot.classList.remove('hidden');
+                else alertDot.classList.add('hidden');
+            }
+        }
+
+        function triggerPushNotification(title, body) {
+            if ("Notification" in window && Notification.permission === "granted") {
+                new Notification(title, {
+                    body: body,
+                    icon: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="%2338bdf8" stroke-width="2"><path d="M6.5 12c.94-2.07 3.08-3.5 5.5-3.5s4.56 1.43 5.5 3.5c-.94 2.07-3.08 3.5-5.5 3.5s-4.56-1.43-5.5-3.5z"/><path d="M2 12h20"/><path d="M12 2v20"/></svg>'
+                });
+            }
+        }
+
+        function renderExpandableScheduledCards() {
+            const container = document.getElementById('expandableScheduledList');
+            if (!container) return;
+
+            if (scheduledFishingTrips.length === 0) {
+                container.innerHTML = `
+                    <div class="glass-card rounded-2xl p-8 text-center text-blue-200">
+                        <i data-lucide="calendar-off" class="w-12 h-12 text-cyan-400 mx-auto mb-3 opacity-60"></i>
+                        <p class="font-semibold text-lg">Nenhuma pescaria agendada no momento.</p>
+                        <p class="text-sm text-blue-300 mt-1">Clique em "Agendar Nova" para começar a monitorar suas saídas.</p>
+                    </div>`;
+                if (typeof lucide !== 'undefined') lucide.createIcons();
+                return;
+            }
+
+            let html = '';
+            const today = new Date();
+            today.setHours(0,0,0,0);
+
+            scheduledFishingTrips.forEach(trip => {
+                const isExpanded = expandedTripId === trip.id;
+                const tripDateObj = new Date(trip.date + "T00:00:00");
+                const dateFormatted = tripDateObj.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+                
+                const diffDays = Math.ceil((tripDateObj - today) / (1000 * 60 * 60 * 24));
+                const daysText = diffDays === 0 ? 'É Hoje!' : diffDays === 1 ? 'Amanhã!' : diffDays > 1 ? `Faltam ${diffDays} dias` : 'Finalizado';
+
+                const details = trip.forecastDetails || {};
+
+                html += `
+                    <div class="glass-card rounded-2xl border transition-all duration-300 overflow-hidden ${isExpanded ? 'border-cyan-400 bg-slate-900/80 shadow-2xl' : 'border-white/15 bg-white/5 hover:bg-white/10'}">
+                        <div onclick="toggleTripExpand(${trip.id})" class="p-5 flex items-center justify-between cursor-pointer select-none">
+                            <div class="flex items-center gap-4">
+                                <div class="p-3 rounded-xl ${details.isBad ? 'bg-red-500/20 text-red-300' : 'bg-cyan-500/20 text-cyan-300'}">
+                                    <i data-lucide="${details.icon || 'calendar'}" class="w-6 h-6"></i>
+                                </div>
+                                <div>
+                                    <h4 class="font-bold text-lg text-white">${trip.location}</h4>
+                                    <div class="flex items-center gap-2 mt-0.5">
+                                        <span class="text-xs text-blue-200">${dateFormatted} (${daysText})</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="flex items-center gap-3">
+                                <span class="text-xs px-3 py-1 rounded-full border ${trip.badgeBg || 'bg-cyan-500/20 border-cyan-500/30 text-cyan-300'} font-medium hidden sm:inline-block">
+                                    ${trip.status === 'danger' ? 'Alerta Climático' : trip.status === 'good' ? 'Favorável' : 'Agendado'}
+                                </span>
+                                <i data-lucide="chevron-down" class="w-5 h-5 text-cyan-300 transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}"></i>
+                            </div>
+                        </div>
+
+                        ${isExpanded ? `
+                            <div class="px-5 pb-5 pt-2 border-t border-white/10 animate-fade-in-up">
+                                <div class="mb-4 p-3.5 rounded-xl bg-black/20 border border-white/5">
+                                    <p class="text-xs font-semibold uppercase tracking-wider text-cyan-300 mb-1">Status do Monitoramento Preditivo</p>
+                                    <p class="text-sm ${trip.statusColor || 'text-cyan-200'} font-medium">${trip.statusText}</p>
+                                </div>
+
+                                ${details.weatherDesc ? `
+                                    <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-4">
+                                        <div class="p-3 rounded-xl bg-white/5 border border-white/5">
+                                            <p class="text-xs text-blue-200">Clima Esperado</p>
+                                            <p class="font-bold text-white text-sm mt-0.5">${details.weatherDesc}</p>
+                                        </div>
+                                        <div class="p-3 rounded-xl bg-white/5 border border-white/5">
+                                            <p class="text-xs text-blue-200">Vento Máximo</p>
+                                            <p class="font-bold text-white text-sm mt-0.5">${details.windMax} km/h</p>
+                                        </div>
+                                        <div class="p-3 rounded-xl bg-white/5 border border-white/5 col-span-2 sm:col-span-1">
+                                            <p class="text-xs text-blue-200">Temperatura</p>
+                                            <p class="font-bold text-white text-sm mt-0.5">${details.tempMin}°C min / ${details.tempMax}°C máx</p>
+                                        </div>
+                                    </div>
+                                ` : ''}
+
+                                <div class="flex justify-between items-center pt-2">
+                                    <button onclick="processCoordinatesForTrip('${trip.location}')" class="text-xs text-cyan-300 hover:text-white flex items-center gap-1.5 underline">
+                                        <i data-lucide="eye" class="w-3.5 h-3.5"></i> Ver no Dashboard principal
+                                    </button>
+                                    <button onclick="deleteSchedule(${trip.id}, event)" class="text-xs text-red-400 hover:text-red-200 px-3 py-1.5 rounded-lg bg-red-500/10 border border-red-500/20 transition-all flex items-center gap-1">
+                                        <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> Cancelar Pescaria
+                                    </button>
+                                </div>
+                            </div>
+                        ` : ''}
+                    </div>
+                `;
+            });
+
+            container.innerHTML = html;
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+        }
+
+        async function processCoordinatesForTrip(locationName) {
+            try {
+                const geoUrl = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(locationName)}&count=1&language=pt`;
+                const geoRes = await fetch(geoUrl);
+                const geoData = await geoRes.json();
+                if (geoData.results && geoData.results.length > 0) {
+                    const loc = geoData.results[0];
+                    await processCoordinates(loc.latitude, loc.longitude, loc.name);
+                    navigateToView('dashboard');
+                }
+            } catch(e) {
+                console.error(e);
+            }
+        }
+
+        document.addEventListener("DOMContentLoaded", () => {
+            if (typeof lucide !== 'undefined') {
+                lucide.createIcons();
+            }
+
+            const searchForm = document.getElementById('searchForm');
+            if (searchForm) {
+                searchForm.addEventListener('submit', handleSearch);
+            }
+
+            const dashboard = document.getElementById('resultsDashboard');
+            if (dashboard) {
+                dashboard.addEventListener('touchstart', e => {
+                    touchStartX = e.changedTouches[0].screenX;
+                }, {passive: true});
+                
+                dashboard.addEventListener('touchend', e => {
+                    touchEndX = e.changedTouches[0].screenX;
+                    handleSwipe();
+                }, {passive: true});
+            }
+
+            loadSchedulesFromStorage();
+            checkAndMonitorSchedules();
+
+            if (!loadLocationsFromStorage()) {
+                useCurrentLocation();
+            } else {
+                refreshCurrentView();
+            }
+
+            setInterval(() => {
+                refreshCurrentView();
+                checkAndMonitorSchedules();
+            }, 86400000);
+        });
+
+        window.addEventListener('touchstart', e => {
+            if (window.scrollY === 0) pullStartY = e.touches[0].clientY;
+        }, {passive: true});
+
+        window.addEventListener('touchmove', e => {
+            if (pullStartY > 0 && window.scrollY === 0 && !isRefreshing) {
+                let y = e.touches[0].clientY - pullStartY;
+                if (y > 0) {
+                    const ptr = document.getElementById('pullToRefresh');
+                    ptr.style.transition = 'none';
+                    ptr.style.transform = `translateY(${Math.min(y - 50, 40)}px)`; 
+                    
+                    const icon = document.getElementById('ptrIcon');
+                    if (y > 80) icon.classList.add('animate-spin');
+                    else icon.classList.remove('animate-spin');
+                }
+            }
+        }, {passive: true});
+
+        window.addEventListener('touchend', e => {
+            if (pullStartY > 0 && !isRefreshing) {
+                let y = e.changedTouches[0].clientY - pullStartY;
+                const ptr = document.getElementById('pullToRefresh');
+                ptr.style.transition = 'transform 0.3s ease';
+                
+                if (y > 80 && window.scrollY === 0) {
+                    ptr.style.transform = `translateY(20px)`;
+                    document.getElementById('ptrIcon').classList.add('animate-spin');
+                    refreshCurrentView();
+                    checkAndMonitorSchedules();
+                } else {
+                    ptr.style.transform = `translateY(-100%)`;
+                }
+            }
+            pullStartY = 0;
+        }, {passive: true});
+
+        async function refreshCurrentView() {
+            if (isRefreshing) return;
+            isRefreshing = true;
+            
+            try {
+                if (savedLocations.length === 0) {
+                    await useCurrentLocation();
+                } else {
+                    const loc = savedLocations[currentLocIndex];
+                    await processCoordinates(loc.lat, loc.lon, loc.name, currentLocIndex);
+                }
+            } catch (error) {
+                console.error("Erro no refresh", error);
+            }
+            
+            isRefreshing = false;
+            document.getElementById('pullToRefresh').style.transform = `translateY(-100%)`;
+        }
+
+        function getRealMoonPhase() {
+            const date = new Date();
+            let year = date.getFullYear();
+            let month = date.getMonth() + 1;
+            let day = date.getDate();
+            if (month < 3) { year--; month += 12; }
+            ++month;
+            let c = 365.25 * year;
+            let e = 30.6 * month;
+            let jd = c + e + day - 694039.09; 
+            let jd_frac = jd / 29.5305882; 
+            let b = parseInt(jd_frac);
+            let phase = jd_frac - b;
+            let phase_num = Math.round(phase * 8);
+            if (phase_num >= 8) phase_num = 0;
+            
+            const phases = [
+                { name: 'Lua Nova', impact: 'Pico de maré (Excelente para praias)', score: 10 },
+                { name: 'Crescente', impact: 'Atividade moderada/alta', score: 6 },
+                { name: 'Quarto Crescente', impact: 'Atividade estabilizada', score: 4 },
+                { name: 'Gibosa Crescente', impact: 'Boa atividade', score: 7 },
+                { name: 'Lua Cheia', impact: 'Pico de predação noturna (Excelente)', score: 10 },
+                { name: 'Gibosa Minguante', impact: 'Atividade caindo lentamente', score: 6 },
+                { name: 'Quarto Minguante', impact: 'Baixa atividade geral', score: 3 },
+                { name: 'Minguante', impact: 'Peixes mais manhosos (Requer paciência)', score: 2 }
+            ];
+            return phases[phase_num];
+        }
+
+        function showErrorUI(message) {
+            const loadingState = document.getElementById('loadingState');
+            loadingState.innerHTML = `
+                <div class="glass-card bg-red-900/30 border-red-500/50 p-6 rounded-2xl flex flex-col items-center gap-3 animate-fade-in-up">
+                    <i data-lucide="alert-circle" class="w-12 h-12 text-red-400"></i>
+                    <p class="text-white font-medium text-center">${message}</p>
+                    <button onclick="resetSearch(true)" class="mt-2 text-sm text-red-300 underline hover:text-white transition-colors">Voltar</button>
+                </div>`;
+            if (typeof lucide !== 'undefined') {
+                lucide.createIcons();
+            }
+        }
+
+        function handleSwipe() {
+            const swipeThreshold = 50;
+            if (touchEndX < touchStartX - swipeThreshold) nextLocation(); 
+            if (touchEndX > touchStartX + swipeThreshold) prevLocation(); 
+        }
+        
+        function nextLocation() {
+            if (currentLocIndex < savedLocations.length - 1) {
+                currentLocIndex++;
+                renderLocation(currentLocIndex);
+            }
+        }
+
+        function prevLocation() {
+            if (currentLocIndex > 0) {
+                currentLocIndex--;
+                renderLocation(currentLocIndex);
+            }
+        }
+        
+        function updatePagination() {
+            const pagContainer = document.getElementById('locationPagination');
+            if (savedLocations.length > 1) {
+                pagContainer.classList.remove('hidden');
+                let dotsHtml = '';
+                for (let i = 0; i < savedLocations.length; i++) {
+                    const isActive = i === currentLocIndex ? 'active bg-cyan-400 w-6' : 'bg-white/30 w-2.5';
+                    dotsHtml += `<div class="h-2.5 rounded-full pagination-dot ${isActive} cursor-pointer hover:bg-cyan-300 transition-all" onclick="goToLocation(${i})"></div>`;
+                }
+                pagContainer.innerHTML = dotsHtml;
+            } else {
+                pagContainer.classList.add('hidden');
+            }
+        }
+
+        function goToLocation(index) {
+            currentLocIndex = index;
+            renderLocation(currentLocIndex);
+        }
+
+        async function useCurrentLocation() {
+            if (!navigator.geolocation) {
+                showSearchForm();
+                return;
+            }
+
+            document.getElementById('searchContainer').classList.add('hidden');
+            document.getElementById('resultsDashboard').classList.add('hidden');
+            const loadingState = document.getElementById('loadingState');
+            loadingState.innerHTML = `<div class="loader mb-4"></div><p class="text-cyan-200 animate-pulse">Buscando sua localização pelo GPS...</p>`;
+            loadingState.classList.remove('hidden');
+            loadingState.classList.add('flex');
+
+            navigator.geolocation.getCurrentPosition(async (position) => {
+                const lat = position.coords.latitude;
+                const lon = position.coords.longitude;
+                
+                try {
+                    const reverseUrl = `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=pt`;
+                    const reverseRes = await fetch(reverseUrl);
+                    const reverseData = await reverseRes.json();
+                    const displayName = reverseData.city || reverseData.locality || "Sua Localização";
+
+                    await processCoordinates(lat, lon, displayName, savedLocations.length > 0 && currentLocIndex === 0 ? 0 : null);
+                } catch (error) {
+                    await processCoordinates(lat, lon, "Sua Localização Atual", savedLocations.length > 0 && currentLocIndex === 0 ? 0 : null);
+                }
+            }, (error) => {
+                showSearchForm();
+            });
+        }
+
+        async function handleSearch(e) {
+            e.preventDefault();
+            
+            const locationInput = document.getElementById('locationInput').value.trim();
+            if(!locationInput) return;
+
+            document.getElementById('searchContainer').classList.add('hidden');
+            document.getElementById('resultsDashboard').classList.add('hidden');
+            const loadingState = document.getElementById('loadingState');
+            loadingState.innerHTML = `<div class="loader mb-4"></div><p class="text-cyan-200 animate-pulse">Lendo os ventos, medindo pressão e mapeando águas...</p>`;
+            loadingState.classList.remove('hidden');
+            loadingState.classList.add('flex');
+
+            try {
+                const geoUrl = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(locationInput)}&count=1&language=pt`;
+                const geoRes = await fetch(geoUrl);
+                const geoData = await geoRes.json();
+
+                if (!geoData.results || geoData.results.length === 0) {
+                    throw new Error(`Não encontramos o local "${locationInput}". Tente digitar apenas o nome da cidade principal.`);
+                }
+
+                const loc = geoData.results[0];
+                const displayName = `${loc.name}${loc.admin1 ? ', ' + loc.admin1 : ''}`;
+
+                await processCoordinates(loc.latitude, loc.longitude, displayName);
+
+            } catch (error) {
+                showErrorUI(error.message);
+            }
+        }
+
+        async function processCoordinates(lat, lon, displayName, updateIndex = null) {
+            try {
+                const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,surface_pressure,wind_speed_10m,weather_code&daily=weather_code,temperature_2m_max,temperature_2m_min&timezone=auto`;
+                const weatherRes = await fetch(weatherUrl);
+                if (!weatherRes.ok) throw new Error("Falha ao buscar dados climáticos.");
+                const weatherData = await weatherRes.json();
+                
+                let marineData = null;
+                try {
+                    const marineUrl = `https://marine-api.open-meteo.com/v1/marine?latitude=${lat}&longitude=${lon}&current=wave_height`;
+                    const marineRes = await fetch(marineUrl);
+                    if (marineRes.ok) {
+                        const mData = await marineRes.json();
+                        if (mData.current && mData.current.wave_height !== null) {
+                            marineData = mData.current;
+                        }
+                    }
+                } catch (e) {}
+
+                const newLocationObj = {
+                    lat: lat,
+                    lon: lon,
+                    name: displayName,
+                    currentData: weatherData.current,
+                    marineData: marineData,
+                    dailyData: weatherData.daily
+                };
+
+                if (updateIndex !== null) {
+                    savedLocations[updateIndex] = newLocationObj;
+                    currentLocIndex = updateIndex;
+                } else {
+                    savedLocations.push(newLocationObj);
+                    currentLocIndex = savedLocations.length - 1;
+                }
+                
+                saveLocationsToStorage();
+                document.getElementById('addLocationBtn').classList.remove('hidden');
+                renderLocation(currentLocIndex);
+
+            } catch (error) {
+                showErrorUI(error.message);
+            }
+        }
+
+        function renderLocation(index) {
+            if (index < 0 || index >= savedLocations.length) return;
+            
+            const locData = savedLocations[index];
+            const currentData = locData.currentData;
+            const marineData = locData.marineData;
+            const locationName = locData.name;
+            
+            weeklyDataCache = locData.dailyData; 
+
+            document.getElementById('loadingState').classList.add('hidden');
+            document.getElementById('loadingState').classList.remove('flex');
+            
+            updatePagination();
+
+            const temp = Math.round(currentData.temperature_2m);
+            const pressure = Math.round(currentData.surface_pressure);
+            const wind = Math.round(currentData.wind_speed_10m);
+            const weather = weatherCodes[currentData.weather_code] || weatherCodes[0];
+            const moon = getRealMoonPhase();
+            
+            const waterTemp = temp > 20 ? temp - 2 : temp + 1;
+            let score = 50; 
+            
+            let pStat = ''; let pColor = '';
+            if (pressure >= 1014) { score += 20; pStat = 'Alta (Excelente)'; pColor = 'text-green-400'; }
+            else if (pressure >= 1009) { score += 10; pStat = 'Estável (Boa)'; pColor = 'text-yellow-400'; }
+            else { score -= 20; pStat = 'Baixa (Peixes no fundo)'; pColor = 'text-red-400'; }
+
+            let windStat = ''; let windColor = '';
+            if (wind < 15) { score += 15; windStat = 'Calmo (Bom arremesso)'; windColor = 'text-green-400'; }
+            else if (wind < 25) { score += 5; windStat = 'Moderado'; windColor = 'text-yellow-400'; }
+            else { score -= 25; windStat = 'Forte (Cuidado)'; windColor = 'text-red-400'; }
+
+            score += moon.score;
+
+            if (currentData.weather_code >= 61) score -= 15;
+            if (currentData.weather_code >= 95) score -= 30;
+
+            let envRec = 'Represa / Rio';
+            let envColor = 'text-teal-400';
+            let seaCond = 'Nenhum mar mapeado perto daqui. O foco é pesca em água doce.';
+            let riverCond = `A influência do vento atual de ${wind}km/h é aceitável.`;
+            
+            if (marineData && marineData.wave_height !== null) {
+                const wave = marineData.wave_height;
+                if (wave > 2.0) {
+                    score -= 30;
+                    seaCond = `⚠️ PERIGO: Mar de ressaca/ondas de ${wave}m. Não navegue!`;
+                    envRec = 'Rio bem abrigado ou Casa';
+                    envColor = 'text-red-400';
+                } else if (wave < 1.2) {
+                    score += 15;
+                    seaCond = `Mar favorável! Ondas baixas de ${wave}m. Excelente para costeira ou barco.`;
+                    envRec = 'Mar (Praia, Costeira, Embarcado)';
+                    envColor = 'text-cyan-400';
+                } else {
+                    seaCond = `Ondas de ${wave}m. Requer experiência na navegação.`;
+                    envRec = 'Mar abrigado (Canal) ou Rio';
+                    envColor = 'text-yellow-400';
+                }
+            } else if (wind > 25 || currentData.weather_code >= 95) {
+                envRec = 'Ficar em Casa (Risco)';
+                envColor = 'text-red-400';
+                riverCond = 'Água possivelmente barrenta e perigosa devido ao clima extremo hoje.';
+            }
+
+            let verdict = {};
+            if (score >= 75) {
+                verdict = {
+                    title: 'Vai dar Bom! Prepara o passaguá! 🎣🏆',
+                    text: `Pode arrumar a tralha! Com a pressão em ${pressure}hPa e a ${moon.name} ajudando na atividade, a natureza está ao seu favor.`,
+                    color: 'text-green-400', bg: 'bg-green-500/20', border: 'border-green-500/30', icon: 'check-circle-2'
+                };
+            } else if (score >= 50) {
+                verdict = {
+                    title: 'Tá Promissor! Vale a pescaria 🐟',
+                    text: `Condições medianas (Pressão: ${pressure}hPa). Não é o dia perfeito, mas peixe não liga pra calendário! Se posicione perto de estruturas.`,
+                    color: 'text-yellow-400', bg: 'bg-yellow-500/20', border: 'border-yellow-500/30', icon: 'thumbs-up'
+                };
+            } else {
+                verdict = {
+                    title: 'Melhor limpar a tralha hoje... 🛋️⛈️',
+                    text: `As condições não ajudam. Seja pelo vento ou pressão ruim, os peixes estarão inativos. Se for pescar, leve isca natural no fundo e tenha muita paciência.`,
+                    color: 'text-red-400', bg: 'bg-red-500/20', border: 'border-red-500/30', icon: 'alert-triangle'
+                };
+            }
+
+            document.getElementById('locationTitle').innerHTML = `
+                <div class="flex items-center justify-center gap-3 w-full">
+                    ${index > 0 ? `<button onclick="prevLocation()" class="p-2 md:hidden hover:bg-white/10 rounded-full transition-colors"><i data-lucide="chevron-left" class="w-6 h-6 text-cyan-400"></i></button>` : `<div class="w-10 md:hidden"></div>`}
+                    <div class="flex items-center gap-2 max-w-[70%]">
+                        <i data-lucide="map-pin" class="w-8 h-8 text-cyan-400 shrink-0"></i>
+                        <span class="truncate"><strong>${locationName}</strong></span>
+                    </div>
+                    ${index < savedLocations.length - 1 ? `<button onclick="nextLocation()" class="p-2 md:hidden hover:bg-white/10 rounded-full transition-colors"><i data-lucide="chevron-right" class="w-6 h-6 text-cyan-400"></i></button>` : `<div class="w-10 md:hidden"></div>`}
+                </div>
+            `;
+
+            const verdictCard = document.getElementById('verdictCard');
+            verdictCard.className = `glass-card rounded-3xl p-8 mb-10 text-center animate-fade-in-up transform transition-all hover:scale-[1.01] ${verdict.border}`;
+            document.getElementById('verdictIconContainer').innerHTML = `<div class="p-4 rounded-full ${verdict.bg} ${verdict.color}"><i data-lucide="${verdict.icon}" class="w-12 h-12"></i></div>`;
+            
+            const titleEl = document.getElementById('verdictTitle');
+            titleEl.className = `text-3xl md:text-4xl font-extrabold mb-4 ${verdict.color}`;
+            titleEl.innerText = verdict.title;
+            document.getElementById('verdictText').innerText = verdict.text;
+
+            document.getElementById('weatherIconWrapper').innerHTML = `<i data-lucide="${weather.icon}" class="w-8 h-8"></i>`;
+            document.getElementById('weatherIconWrapper').className = `p-3 rounded-xl transition-colors bg-white/10 group-hover:bg-white/20 ${weather.color}`;
+            document.getElementById('weatherDesc').innerText = weather.desc;
+            document.getElementById('weatherTemp').innerText = `${temp}°C Atual`;
+
+            document.getElementById('pressureValue').innerText = `${pressure} hPa`;
+            document.getElementById('pressureStatus').innerText = pStat;
+            document.getElementById('pressureStatus').className = `text-sm mt-1 ${pColor}`;
+
+            document.getElementById('windSpeed').innerText = `${wind} km/h`;
+            document.getElementById('windStatus').innerText = windStat;
+            document.getElementById('windStatus').className = `text-sm mt-1 ${windColor}`;
+
+            document.getElementById('moonPhase').innerText = moon.name;
+            document.getElementById('moonImpact').innerText = moon.impact;
+
+            document.getElementById('waterTemp').innerText = `${waterTemp}°C`;
+            document.getElementById('waterStatus').innerText = waterTemp < 20 ? 'Fria (Metabolismo lento)' : 'Agradável (Boa ação)';
+
+            document.getElementById('bestTime').innerText = temp > 28 ? '05:30 às 09:00 (Fugir do sol)' : '07:00 às 10:30 e Fim de tarde';
+
+            const envRecEl = document.getElementById('envRecommendation');
+            envRecEl.innerText = `Recomendado: ${envRec}`;
+            envRecEl.className = `text-xl font-bold ${envColor}`;
+            document.getElementById('seaConditions').innerText = seaCond;
+            document.getElementById('riverConditions').innerText = riverCond;
+
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+            
+            const dashboard = document.getElementById('resultsDashboard');
+            dashboard.classList.remove('hidden');
+            
+            const animatedElements = dashboard.querySelectorAll('.animate-fade-in-up');
+            animatedElements.forEach(el => {
+                el.style.animation = 'none';
+                el.offsetHeight; 
+                el.style.animation = null; 
+            });
+        }
+
+        function showSearchForm() {
+            document.getElementById('resultsDashboard').classList.add('hidden');
+            document.getElementById('loadingState').classList.add('hidden');
+            document.getElementById('loadingState').classList.remove('flex');
+            
+            const searchContainer = document.getElementById('searchContainer');
+            searchContainer.classList.remove('hidden');
+            searchContainer.classList.remove('opacity-0');
+            searchContainer.classList.add('animate-fade-in-up');
+            
+            if (savedLocations.length > 0) {
+                document.getElementById('cancelSearchContainer').classList.remove('hidden');
+            }
+            
+            const locationInput = document.getElementById('locationInput');
+            locationInput.value = '';
+            locationInput.focus();
+        }
+
+        function cancelSearch() {
+            document.getElementById('searchContainer').classList.add('hidden');
+            renderLocation(currentLocIndex);
+        }
+
+        function resetSearch(isError = false) {
+            showSearchForm();
+        }
+
+        function showWeeklyForecast() {
+            if (!weeklyDataCache) return;
+
+            const modal = document.getElementById('weeklyModal');
+            const modalContent = document.getElementById('weeklyModalContent');
+            const list = document.getElementById('weeklyList');
+            
+            let html = '';
+            
+            weeklyDataCache.time.slice(0, 6).forEach((dateStr, index) => {
+                const dateObj = new Date(dateStr + "T00:00:00");
+                const diasSemana = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+                
+                let diaNome = index === 0 ? 'Hoje' : index === 1 ? 'Amanhã' : `${diasSemana[dateObj.getDay()]} (${dateObj.getDate().toString().padStart(2, '0')}/${(dateObj.getMonth()+1).toString().padStart(2, '0')})`;
+                
+                const wCode = weeklyDataCache.weather_code[index];
+                const tempMax = Math.round(weeklyDataCache.temperature_2m_max[index]);
+                const dayWeather = weatherCodes[wCode] || weatherCodes[0];
+                
+                const isGood = wCode < 60;
+                
+                html += `
+                    <div class="flex items-center justify-between p-4 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 transition-colors">
+                        <div class="flex items-center gap-4">
+                            <span class="w-28 font-semibold text-blue-100">${diaNome}</span>
+                            <div class="flex items-center gap-2 w-24">
+                                <i data-lucide="${dayWeather.icon}" class="w-5 h-5 ${dayWeather.color}"></i>
+                                <span class="text-white font-medium">${tempMax}°C máx</span>
+                            </div>
+                        </div>
+                        <span class="px-4 py-1.5 text-xs font-bold uppercase tracking-wider rounded-full ${isGood ? 'bg-green-500/20 text-green-300 border border-green-500/30' : 'bg-red-500/20 text-red-300 border border-red-500/30'}">
+                            ${isGood ? 'Bom' : 'Ruim/Chuva'}
+                        </span>
+                    </div>
+                `;
+            });
+            
+            list.innerHTML = html;
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            
+            setTimeout(() => {
+                modal.classList.remove('opacity-0');
+                modalContent.classList.remove('scale-95');
+            }, 10);
+        }
+
+        function closeWeeklyForecast() {
+            const modal = document.getElementById('weeklyModal');
+            const modalContent = document.getElementById('weeklyModalContent');
+            
+            modal.classList.add('opacity-0');
+            modalContent.classList.add('scale-95');
+            
+            setTimeout(() => {
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+            }, 300);
+        }
+    </script>
+</body>
+</html>
